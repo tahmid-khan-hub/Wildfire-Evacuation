@@ -1,6 +1,52 @@
 import numpy as np
 
-from env.constants import (GRID_WIDTH, GRID_HEIGHT, IMPASSBLE_TERRAIN, )
+from env.constants import (GRID_WIDTH, GRID_HEIGHT, IMPASSBLE_TERRAIN, TERRAIN_FOREST, TERRAIN_BRUSH, TERRAIN_ROCK, TERRAIN_WATER, FIRE_NONE, FIRE_LOW, NUM_INITIAL_IGNITIONS, NUM_SURVIVORS)
+
+def generate_grid(rng: np.random.Generator = None):
+    # generate a fresh grid, fire state grid, agent start position and survivor positions for a new episode
+    if rng is None:
+        rng = np.random.default_rng()
+
+    terrain = _generate_terrain(rng)
+    fire_state = np.full((GRID_HEIGHT, GRID_WIDTH), FIRE_NONE, dtype=np.int8)
+
+    passable_cells = _get_passable_cells(terrain)
+
+    # the location where fire initially starts
+    ignition_points = _pick_random_cells(passable_cells, NUM_INITIAL_IGNITIONS, rng)
+    for (x,y) in ignition_points:
+        fire_state[y, x] = FIRE_LOW
+
+    used = set(ignition_points)
+
+    # place survivors
+    available_for_survivors = []
+    for c in passable_cells:
+        if c not in used:
+            available_for_survivors.append(c)
+    survivor_positions = _pick_random_cells( available_for_survivors, NUM_SURVIVORS, rng )
+
+    used.update(survivor_positions)
+
+    # place agent
+    available_for_agents = []
+    for a in passable_cells:
+        if a not in used:
+            available_for_agents.append(a)
+    agent_start = _pick_random_cells( available_for_agents, 1, rng )[0]
+
+    return terrain, fire_state, agent_start, survivor_positions
+
+def _generate_terrain(rng: np.random.Generator) -> np.ndarray:
+    # build a static terrain layer - mostly forest, brush patches, a rock scattering and one water body
+    terrain = np.full((GRID_HEIGHT, GRID_WIDTH), TERRAIN_FOREST, dtype=np.int8)
+
+    _scatter_patches(terrain, TERRAIN_BRUSH, patch_count=3, patch_size=4, rng=rng)
+    _scatter_patches(terrain, TERRAIN_ROCK, patch_count=2, patch_size=2, rng=rng)
+    _carve_water_body(terrain, TERRAIN_WATER, length=6, rng=rng)
+
+    return terrain
+
 
 def _scatter_patches(terrain, terrain_type, patch_count, patch_size, rng):
     # drop a few small random-walk blobs of a given terrain type onto the grid
