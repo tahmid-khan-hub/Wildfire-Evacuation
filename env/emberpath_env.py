@@ -1,5 +1,25 @@
 import numpy as np
-from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSABLE_TERRAIN, DANGEROUS_FIRE_STATES )
+from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSABLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS )
+from env.grid_generator import generate_grid
+from env.fire_spread import init_burn_timer
+
+def reset(self, *, seed=None, options=None):
+    super().reset(seed=seed)
+    if seed is not None:
+        self.rng = np.random.default_rng(seed)
+
+    terrain, fire_state, agent_start, survivor_positions = generate_grid(self.rng)
+
+    self.terrain = terrain
+    self.fire_state = fire_state
+    self.burn_timer = init_burn_timer()
+    self.agent_pos = agent_start
+    self.survivor_positions = survivor_positions
+    self.survivor_rescued = [False] * NUM_SURVIVORS
+    self.survivor_burned = [False] * NUM_SURVIVORS
+    self.step_count = 0
+
+    return self._get_obs(), self._get_info()
 
 def _move_agent(self, action):
     dx, dy = ACTION_DELTAS[action]
@@ -67,7 +87,7 @@ def _get_obs(self):
             survivor_info.extend([float(sx), float(sy), 0.0]) # 0.0 means active
 
     survivor_info = np.array(survivor_info, dtype=np.float32)
-    
+
     return np.concatenate([terrain_flat, fire_flat, agent_xy, survivor_info])
 
 def _get_info(self):
