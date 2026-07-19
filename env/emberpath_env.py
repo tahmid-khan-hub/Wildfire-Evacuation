@@ -1,12 +1,35 @@
 import numpy as np
 import gymnasium as gym
-from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSABLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS )
+from gymnasium import spaces
+from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSABLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS, REWARD_STEP_PENALTY, REWARD_AGENT_BURNED, REWARD_RESCUE, REWARD_SURVIVOR_BURNED, REWARD_DISTANCE_SHAPING, MAX_EPISODE_STEPS, REWARD_TIMEOUT)
 from env.grid_generator import generate_grid
-from env.fire_spread import init_burn_timer
+from env.fire_spread import spread_fire, init_burn_timer
 
 class EmberPathEnv(gym.Env):
+    metadata = {"render_modes": []}
 
+    # called once when the environment is created.
+    def __init__(self, seed=None):
+        super().__init__()
 
+        self.action_space = spaces.Discrete(4)
+
+        obs_size = (GRID_HEIGHT*GRID_WIDTH*2) + 2 + (NUM_SURVIVORS*3) # *2 because terrain and fire grid, +2 because agent position takes 2 value, *3 because survivor contributes 3 value
+        self.observation_space = spaces.Box(low=-1, high=max(GRID_WIDTH, GRID_HEIGHT), shape=(obs_size,), dtype=np.float32) # shape will be taken as tuple not int because of gym
+
+        self.rng = np.random.default_rng(seed)
+
+        # value will be initialized in reset()
+        self.terrain = None
+        self.fire_state = None
+        self.burn_timer = None
+        self.agent_pos = None
+        self.survivor_positions = None
+        self.survivor_rescued = None
+        self.survivor_burned = None
+        self.step_count = 0
+
+    # it creates the actual env
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
         if seed is not None:
@@ -24,6 +47,45 @@ class EmberPathEnv(gym.Env):
         self.step_count = 0
 
         return self._get_obs(), self._get_info()
+
+    # if the agent perform action then what would happen
+    def step(self, action):
+        self.step_count += 1 # agent move one cell means +1
+        prev_dist = self._nearest_unresolved_distance() # we will compare it with after agent pos move so that agent get nearest result
+    
+        self._move_agent(action) # now agent moved
+    
+        self.fire_state, self.burn_timer = spread_fire(self.terrain, self.fire_state, self.burn_timer, self.rng) # fire advances whether the agent move was valid
+    
+        reward = REWARD_STEP_PENALTY
+        terminated = False # initially episode can not be true
+    
+        # if the agent is in fire state then finish the episode with reward
+        agent_x, agent_y = self.agent_pos
+        if self.fire_state[agent_y, agent_x] in DANGEROUS_FIRE_STATES:
+            reward += REWARD_AGENT_BURNED
+            terminated = True
+    
+        # if the agent not burnt then calculate the reward how many it rescued and burned
+        reward += self._check_rescues * REWARD_RESCUE
+        reward += self._check_survivors_burned * REWARD_SURVIVOR_BURNED
+    
+        new_dist = self._nearest_unresolved_distance()
+        if prev_dist is not None and new_dist is not None and new_dist < prev_dist:
+            reward += REWARD_DISTANCE_SHAPING
+    
+        # nothing left, episode over
+        resolved_count = sum(self.survivor_burned) + sum(self.survivor_rescued)
+        if resolved_count == NUM_SURVIVORS:
+            terminated = True
+    
+        # still survivors left but curr step is greater than max step so ended the episode of external limit
+        truncated = False
+        if self.step_count >= MAX_EPISODE_STEPS and not terminated:
+            truncated = True
+            reward += REWARD_TIMEOUT
+    
+        return self._get_obs(), reward, terminated, truncated, self._get_info()
 
     def _move_agent(self, action):
         dx, dy = ACTION_DELTAS[action]
