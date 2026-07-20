@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSABLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS, REWARD_STEP_PENALTY, REWARD_AGENT_BURNED, REWARD_RESCUE, REWARD_SURVIVOR_BURNED, REWARD_DISTANCE_SHAPING, MAX_EPISODE_STEPS, REWARD_TIMEOUT)
+from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSBLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS, REWARD_STEP_PENALTY, REWARD_AGENT_BURNED, REWARD_RESCUE, REWARD_SURVIVOR_BURNED, REWARD_DISTANCE_SHAPING, MAX_EPISODE_STEPS, REWARD_TIMEOUT)
 from env.grid_generator import generate_grid
 from env.fire_spread import spread_fire, init_burn_timer
 
@@ -67,8 +67,8 @@ class EmberPathEnv(gym.Env):
             terminated = True
     
         # if the agent not burnt then calculate the reward how many it rescued and burned
-        reward += self._check_rescues * REWARD_RESCUE
-        reward += self._check_survivors_burned * REWARD_SURVIVOR_BURNED
+        reward += self._check_rescues() * REWARD_RESCUE
+        reward += self._check_survivors_burned() * REWARD_SURVIVOR_BURNED
     
         new_dist = self._nearest_unresolved_distance()
         if prev_dist is not None and new_dist is not None and new_dist < prev_dist:
@@ -92,7 +92,7 @@ class EmberPathEnv(gym.Env):
         nx = self.agent_pos[0] + dx
         ny = self.agent_pos[1] + dy
         if 0 <= nx < GRID_WIDTH and 0 <= ny < GRID_HEIGHT:
-            if self.terrain[ny, nx] not in IMPASSABLE_TERRAIN:
+            if self.terrain[ny, nx] not in IMPASSBLE_TERRAIN:
                 self.agent_pos = (nx, ny)
 
     def _check_rescues(self):
@@ -116,7 +116,7 @@ class EmberPathEnv(gym.Env):
 
             if self.survivor_rescued[i] or self.survivor_burned[i]:
                 continue
-            if self.fire_states[sy, sx] in DANGEROUS_FIRE_STATES:
+            if self.fire_state[sy, sx] in DANGEROUS_FIRE_STATES:
                 self.survivor_burned[i] = True
                 count += 1
         return count
@@ -132,10 +132,10 @@ class EmberPathEnv(gym.Env):
 
             distances.append(abs(sx - agent_x) + abs(sy - agent_y)) # calculate manhattan distance as it is suitable because our agent can not move diagonally
 
-            if distances:
-                return min(distances)
-            else:
-                return None
+        if distances:
+            return min(distances)
+        else:
+            return None
 
     def _get_obs(self):
         # neural networks don't naturally work with multiple separate variables, it expect a fixed-size numerical input. Here, we transforms the environment's internal state into a single vector
