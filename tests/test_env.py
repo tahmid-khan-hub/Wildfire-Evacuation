@@ -20,6 +20,10 @@ def test_reset_returns_valid_obs():
     assert obs.shape == env.observation_space.shape # if it is false then it will return assertion error - using it for testing
     assert not np.any(np.isnan(obs)) # checking whether a Nan is present or not - if yes then assertion error 
     # (not used because if it is false then not will reverse it to true and assertion error will not be thrown if it is true - here false means no Nan present in obs)
+    assert info["step_count"] == 0
+    assert info["rescued"] == 0
+    assert info["burned"] == 0
+    assert info["agent_pos"] == env.agent_pos
 
 # after reset(), the agent and all survivors must be placed on passable terrain
 def test_reset_agent_and_survivors_on_passable_terrain():
@@ -54,3 +58,16 @@ def test_agent_moves_correctly(action, dx, dy):
         (sx, sy), # movement blocked
         (sx + dx, sy + dy), # movement succeed
     ]
+
+def test_same_seed_generates_same_world():
+    env1 = EmberPathEnv(seed=42)
+    env2 = EmberPathEnv(seed=42)
+
+    env1.reset()
+    env2.reset()
+
+    assert np.array_equal(env1.terrain, env2.terrain)
+    assert np.array_equal(env1.fire_state, env2.fire_state)
+    assert env1.agent_pos == env2.agent_pos
+    assert env1.survivor_positions == env2.survivor_positions
+
