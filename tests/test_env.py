@@ -1,7 +1,17 @@
 import numpy as np
 import pytest
 from env.emberpath_env import EmberPathEnv
-from env.constants import IMPASSBLE_TERRAIN
+from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT )
+
+@pytest.mark.parametrize(
+    "action, dx, dy",
+    [
+        (ACTION_UP, 0, -1),
+        (ACTION_DOWN, 0, 1),
+        (ACTION_LEFT, -1, 0),
+        (ACTION_RIGHT, 1, 0),
+    ],
+)
 
 # to check reset() works correctly
 def test_reset_returns_valid_obs():
@@ -32,3 +42,15 @@ def test_step_does_not_crash():
         if terminated or truncated:
             break # if terminated or truncated happen then stop the loop
 
+def test_agent_moves_correctly(action, dx, dy):
+    env = EmberPathEnv(seed=4)
+    env.reset()
+
+    sx, sy = env.agent_pos
+    env._move_agent(action)
+    nx, ny = env.agent_pos
+
+    assert (nx, ny) in [
+        (sx, sy), # movement blocked
+        (sx + dx, sy + dy), # movement succeed
+    ]
