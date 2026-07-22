@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from env.emberpath_env import EmberPathEnv
-from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, MAX_EPISODE_STEPS, NUM_SURVIVORS )
+from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, MAX_EPISODE_STEPS, NUM_SURVIVORS, DANGEROUS_FIRE_STATES )
 
 # to check reset() works correctly
 def test_reset_returns_valid_obs():
@@ -70,6 +70,32 @@ def test_same_seed_generates_same_world():
     assert np.array_equal(env1.fire_state, env2.fire_state)
     assert env1.agent_pos == env2.agent_pos
     assert env1.survivor_positions == env2.survivor_positions
+
+# if the agent enters a dangerous fire cell, does the environment end the episode?
+def test_agent_entering_dangerous_fire_terminates_episode():
+    env = EmberPathEnv(seed=9)
+    env.reset()
+    ax, ay = env.agent_pos
+    hot_state = next(iter(DANGEROUS_FIRE_STATES))
+
+    directions = [
+        (0, -1, ACTION_UP),
+        (0, 1, ACTION_DOWN),
+        (-1, 0, ACTION_LEFT),
+        (1, 0, ACTION_RIGHT),
+    ]
+
+    for dx, dy, action in directions:
+        nx, ny = ax + dx, ay + dy
+
+        if ( 0 <= nx < env.terrain.shape[1] and 0 <= ny < env.terrain.shape[0] and env.terrain[ny, nx] not in IMPASSBLE_TERRAIN ):
+            env.fire_state[ny, nx] = hot_state
+            break
+    else:
+        pytest.skip("No adjacent passable tile available to ignite.")
+
+    _, _, terminated, _, _ = env.step(action)
+    assert terminated is True
 
 # once every survivor is resolved (rescued or burned), the episode must
 # terminate on that step regardless of remaining step budget
