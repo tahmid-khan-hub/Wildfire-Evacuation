@@ -1,17 +1,7 @@
 import numpy as np
 import pytest
 from env.emberpath_env import EmberPathEnv
-from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT )
-
-@pytest.mark.parametrize(
-    "action, dx, dy",
-    [
-        (ACTION_UP, 0, -1),
-        (ACTION_DOWN, 0, 1),
-        (ACTION_LEFT, -1, 0),
-        (ACTION_RIGHT, 1, 0),
-    ],
-)
+from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, MAX_EPISODE_STEPS )
 
 # to check reset() works correctly
 def test_reset_returns_valid_obs():
@@ -46,6 +36,16 @@ def test_step_does_not_crash():
         if terminated or truncated:
             break # if terminated or truncated happen then stop the loop
 
+@pytest.mark.parametrize(
+    "action, dx, dy",
+    [
+        (ACTION_UP, 0, -1),
+        (ACTION_DOWN, 0, 1),
+        (ACTION_LEFT, -1, 0),
+        (ACTION_RIGHT, 1, 0),
+    ],
+)
+
 def test_agent_moves_correctly(action, dx, dy):
     env = EmberPathEnv(seed=4)
     env.reset()
@@ -71,3 +71,30 @@ def test_same_seed_generates_same_world():
     assert env1.agent_pos == env2.agent_pos
     assert env1.survivor_positions == env2.survivor_positions
 
+# episode should never run past MAX_EPISODE_STEPS
+def test_episode_ends_within_max_steps():
+    env = EmberPathEnv(seed=7)
+    env.reset()
+    terminated = False
+    truncated = False
+    steps = 0
+    while not (terminated or truncated) and steps <= MAX_EPISODE_STEPS:
+        action = env.action_space.sample()
+        _, _, terminated, truncated, info = env.step(action) # obs and reward ignored
+        steps += 1
+    assert terminated or truncated
+    assert steps <= MAX_EPISODE_STEPS
+
+# stepping past MAX_EPISODE_STEPS without resolving all survivors should
+# truncate (not terminate) and apply REWARD_TIMEOUT
+def test_timeout_truncates_when_unresolved():
+    env = EmberPathEnv(seed=11)
+    env.reset()
+    env.step_count = MAX_EPISODE_STEPS - 1
+
+    action = env.action_space.sample()
+    _, _, terminated, truncated, info = env.step(action)
+
+    assert info["step_count"] == MAX_EPISODE_STEPS
+    if not terminated:
+        assert truncated is True
