@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from env.emberpath_env import EmberPathEnv
-from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, MAX_EPISODE_STEPS )
+from env.constants import (IMPASSBLE_TERRAIN ,ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, MAX_EPISODE_STEPS, NUM_SURVIVORS )
 
 # to check reset() works correctly
 def test_reset_returns_valid_obs():
@@ -71,6 +71,19 @@ def test_same_seed_generates_same_world():
     assert env1.agent_pos == env2.agent_pos
     assert env1.survivor_positions == env2.survivor_positions
 
+# once every survivor is resolved (rescued or burned), the episode must
+# terminate on that step regardless of remaining step budget
+def test_all_survivors_resolved_terminates_episode():
+    env = EmberPathEnv(seed=10)
+    env.reset()
+    env.survivor_rescued = [True] * NUM_SURVIVORS
+    env.survivor_burned = [False] * NUM_SURVIVORS
+    action = env.action_space.sample()
+    _, _, terminated, _, info = env.step(action)
+
+    assert terminated is True
+    assert info["rescued"] == NUM_SURVIVORS
+
 # episode should never run past MAX_EPISODE_STEPS
 def test_episode_ends_within_max_steps():
     env = EmberPathEnv(seed=7)
@@ -80,7 +93,7 @@ def test_episode_ends_within_max_steps():
     steps = 0
     while not (terminated or truncated) and steps <= MAX_EPISODE_STEPS:
         action = env.action_space.sample()
-        _, _, terminated, truncated, info = env.step(action) # obs and reward ignored
+        _, _, terminated, truncated, _ = env.step(action) # obs, info and reward ignored
         steps += 1
     assert terminated or truncated
     assert steps <= MAX_EPISODE_STEPS
