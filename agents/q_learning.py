@@ -1,5 +1,10 @@
 import numpy as np
 from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSBLE_TERRAIN, DANGEROUS_FIRE_STATES, )
+import random
+import pickle
+from collections import defaultdict
+
+# Convert the environment into a simple state
 
 def _distance_bucket(dist):
     # using it so the Q-table doesn't explode with exact distances
@@ -62,4 +67,23 @@ def discretize_state(env):
                 survivors_remaining += 1
 
         return (ax, ay, dir_x, dir_y, dist_bucket, tuple(danger_flags), survivors_remaining)
+    
+
+# Learn which action is best in each state
+class QLearningAgent:
+    def __init__(self, n_actions=4, alpha=0.1, gamma=0.95, epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995):
+        # here, all the parameters value are set as default value
+        # n_actions = 4 possible actions, alpha = how much the agent changes its old knowledge, gamma = how much the agent does care about the future rewards, epsilon_start = Initial exploration rate.
+        # epsilon_end = The minimum exploration rate
+
+        self.n_actions = n_actions
+        self.alpha = alpha          
+        self.gamma = gamma         
+        self.epsilon = epsilon_start
+        self.epsilon_end = epsilon_end
+        self.epsilon_decay = epsilon_decay
+
+        # defaultdict creates a default value automatically when a missing key is accessed.
+        # ex: array([0., 0., 0., 0.], dtype=float32) - instead of rising an error it stores value automatically
+        self.q_table = defaultdict(lambda: np.zeros(self.n_actions, dtype=np.float32))
 
