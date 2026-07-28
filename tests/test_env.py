@@ -71,6 +71,29 @@ def test_same_seed_generates_same_world():
     assert env1.agent_pos == env2.agent_pos
     assert env1.survivor_positions == env2.survivor_positions
 
+# if the agent moves onto a survivor's tile, that survivor is rescued
+def test_survivor_rescued_on_contact():
+    env = EmberPathEnv(seed=8)
+    env.reset()
+
+    if not env.survivor_positions:
+        pytest.skip("No survivors placed for this seed.")
+
+    tx, ty = env.survivor_positions[0] # target the first survivor
+
+    # place the agent one tile above the survivor or below if that's off-grid
+    if ty - 1 >= 0:
+        env.agent_pos = (tx, ty - 1)
+        action = ACTION_DOWN
+    else:
+        env.agent_pos = (tx, ty + 1)
+        action = ACTION_UP
+
+    _, _, _, _, info = env.step(action) # obs, reward, terminated, truncated ignored
+
+    assert info["rescued"] == 1
+    assert env.survivor_rescued[0] is True
+
 # if the agent enters a dangerous fire cell, does the environment end the episode?
 def test_agent_entering_dangerous_fire_terminates_episode():
     env = EmberPathEnv(seed=9)
