@@ -87,3 +87,39 @@ class QLearningAgent:
         # ex: array([0., 0., 0., 0.], dtype=float32) - instead of rising an error it stores value automatically
         self.q_table = defaultdict(lambda: np.zeros(self.n_actions, dtype=np.float32))
 
+    def select_action(self, state, greedy=False):
+        if not greedy and random.random() < self.epsilon:
+            return random.randrange(self.n_actions) # agent ignores the Q-table and chooses a random action
+
+        q_values = self.q_table[state]
+        # random tie-break instead of always picking action 0 when values are equal
+        max_q = np.max(q_values)
+        best_actions = np.flatnonzero(q_values == max_q)
+        return int(random.choice(best_actions)) # randomly choose the best actions
+
+    # where the agent learns from its experience
+    def update(self, state, action, reward, next_state, done):
+        current_q = self.q_table[state][action]
+        if done:
+            target = reward
+        else:
+            target = reward + self.gamma * np.max(self.q_table[next_state])
+        self.q_table[state][action] += self.alpha * (target - current_q)
+
+    def decay_epsilon(self):
+        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay) # to reduce exploration over time
+
+    def save(self, path):
+        # save the trained Q-table to a file so the agent can remember what it learned
+        # convert defaultdict to a plain dict before pickling
+
+        with open(path, "wb") as f: # wb means write binary format
+            pickle.dump(dict(self.q_table), f) # pickle converts the Python object into bytes and writes it into the file.
+            # Python's pickle may have trouble saving that lambda function - so we convert it to plain dict
+
+    def load(self, path):
+        # to save the training as plain dict but for training it works with defaultDict
+        with open(path, "rb") as f:
+            loaded = pickle.load(f)
+        self.q_table = defaultdict(lambda: np.zeros(self.n_actions, dtype=np.float32))
+        self.q_table.update(loaded)
