@@ -9,7 +9,7 @@ from env.emberpath_env import EmberPathEnv
 from agents.q_learning import QLearningAgent, discretize_state
 
 TRAIN_SEED = 42  # fixed map — same layout every episode, on purpose
-NUM_EPISODES = 3000
+NUM_EPISODES = 6000
 LOG_EVERY = 100
 
 def train():

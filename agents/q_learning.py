@@ -25,53 +25,67 @@ def _sign(v):
         return -1
     return 0
 
+def _nearest_fire_distance(env, sx, sy):
+    # Manhattan distance from (sx, sy) to the closest currently-burning cell. Returns None if nothing is burning right now
+    burning = np.argwhere(np.isin(env.fire_state, list(DANGEROUS_FIRE_STATES)))
+    if len(burning) == 0:
+        return None
+    dists = np.abs(burning[:, 1] - sx) + np.abs(burning[:, 0] - sy)  # burning is (y, x)
+    return int(dists.min())
+
 def discretize_state(env):
-    # turns the env's internal state into a small, hashable tuple
-    # suitable for a dict-based Q-table. reads env internals directly rather than using _get_obs(), since that vector is sized for NN input.
-    
     ax, ay = env.agent_pos
 
-    # find nearest unresolved survivor
-    best_dist = None
-    best_dx, best_dy = 0, 0
-    for i in range(len(env.survivor_positions)):
-        sx, sy = env.survivor_positions[i]
+    priority_dist = None  # fire-proximity of the chosen target (for tie-breaking)
+    agent_dist_to_target = None
+    target_dx, target_dy = 0, 0
 
+    for i, (sx, sy) in enumerate(env.survivor_positions):
         if env.survivor_rescued[i] or env.survivor_burned[i]:
-            continue # already burned or rescued then skip
-        
-        dist = abs(sx - ax) + abs(sy - ay)
-        if best_dist is None or dist < best_dist:
-            best_dist = dist
-            best_dx, best_dy = sx - ax, sy - ay
+            continue
 
-        dir_x = _sign(best_dx)
-        dir_y = _sign(best_dy)
-        dist_bucket = _distance_bucket(best_dist)
+        fire_dist = _nearest_fire_distance(env, sx, sy)
+        fire_dist = fire_dist if fire_dist is not None else 10_000  # no fire yet -> lowest urgency
+        agent_dist = abs(sx - ax) + abs(sy - ay)
 
-        # danger flags for the 4 adjacent cells (order matches ACTION_DELTAS)
-        danger_flags = []
-        for action in sorted(ACTION_DELTAS.keys()):
-            dx, dy = ACTION_DELTAS[action]
-            nx, ny = dx+ax, dy+ay
+        is_better = (
+            priority_dist is None
+            or fire_dist < priority_dist
+            or (fire_dist == priority_dist and agent_dist < agent_dist_to_target)
+        )
+        if is_better:
+            priority_dist = fire_dist
+            agent_dist_to_target = agent_dist
+            target_dx, target_dy = sx - ax, sy - ay
 
-            if 0 <= nx < GRID_WIDTH and 0 <= ny < GRID_HEIGHT:
-                danger = env.fire_state[ny, nx] in DANGEROUS_FIRE_STATES
-            else:
-                danger = True
-            danger_flags.append(int(danger))
+    dir_x, dir_y = _sign(target_dx), _sign(target_dy)
+    dist_bucket = _distance_bucket(agent_dist_to_target)
 
-        survivors_remaining = 0
-        for i in range(len(env.survivor_positions)):
-            if not env.survivor_rescued[i] and not env.survivor_burned[i]:
-                survivors_remaining += 1
+    danger_flags = []
+    for action in sorted(ACTION_DELTAS.keys()):
+        dx, dy = ACTION_DELTAS[action]
+        nx, ny = ax + dx, ay + dy
+        if 0 <= nx < GRID_WIDTH and 0 <= ny < GRID_HEIGHT:
+            danger = env.fire_state[ny, nx] in DANGEROUS_FIRE_STATES
+        else:
+            danger = True
+        danger_flags.append(int(danger))
 
-        return (ax, ay, dir_x, dir_y, dist_bucket, tuple(danger_flags), survivors_remaining)
-    
+    survivors_remaining = sum(
+        1 for i in range(len(env.survivor_positions))
+        if not env.survivor_rescued[i] and not env.survivor_burned[i]
+    )
+
+    return (
+        ax, ay,
+        dir_x, dir_y, dist_bucket,
+        tuple(danger_flags),
+        survivors_remaining,
+    )
 
 # Learn which action is best in each state
 class QLearningAgent:
-    def __init__(self, n_actions=4, alpha=0.1, gamma=0.95, epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995):
+    def __init__(self, n_actions=4, alpha=0.1, gamma=0.95, epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.9995):
         # here, all the parameters value are set as default value
         # n_actions = 4 possible actions, alpha = how much the agent changes its old knowledge, gamma = how much the agent does care about the future rewards, epsilon_start = Initial exploration rate.
         # epsilon_end = The minimum exploration rate
