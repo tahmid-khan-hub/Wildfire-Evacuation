@@ -1,61 +1,13 @@
 import pygame
 import sys
 from env.emberpath_env import EmberPathEnv
-from env.constants import (
-    TERRAIN_FOREST, TERRAIN_BRUSH, TERRAIN_WATER, TERRAIN_ROCK,
-    FIRE_NONE, FIRE_LOW, FIRE_MID, FIRE_HIGH, FIRE_ASH,
-)
 from agents.q_learning import QLearningAgent, discretize_state
+from render.asset_manager import AssetManager, TILE_SIZE
+from render.renderer import Renderer
+from render.hud import HUD, HUD_HEIGHT
 
-TILE_SIZE = 48
-Q_TABLE_PATH = "models/q_table.pkl"   
-SEED = 42                              
-
-TERRAIN_COLORS = {
-    TERRAIN_FOREST: (34, 90, 34),
-    TERRAIN_BRUSH:  (150, 130, 40),
-    TERRAIN_WATER:  (40, 90, 180),
-    TERRAIN_ROCK:   (120, 120, 120),
-}
-
-FIRE_COLORS = {
-    FIRE_NONE: None,
-    FIRE_LOW:  (255, 200, 0, 120),
-    FIRE_MID:  (255, 120, 0, 160),
-    FIRE_HIGH: (200, 0, 0, 200),
-    FIRE_ASH:  (60, 60, 60, 180),
-}
-
-AGENT_COLOR = (0, 255, 255)
-SURVIVOR_COLOR = (255, 0, 255)
-
-def draw_grid(screen, env):
-    screen.fill((10, 10, 10))
-
-    for y in range(env.terrain.shape[0]):
-        for x in range(env.terrain.shape[1]):
-            rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-
-            color = TERRAIN_COLORS[int(env.terrain[y, x])]
-            pygame.draw.rect(screen, color, rect)
-
-            fire_color = FIRE_COLORS[int(env.fire_state[y, x])]
-            if fire_color is not None:
-                overlay = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-                overlay.fill(fire_color)
-                screen.blit(overlay, rect.topleft)
-
-            pygame.draw.rect(screen, (0, 0, 0), rect, 1)
-
-    for i, (sx, sy) in enumerate(env.survivor_positions):
-        if env.survivor_rescued[i] or env.survivor_burned[i]:
-            continue
-        center = (sx * TILE_SIZE + TILE_SIZE // 2, sy * TILE_SIZE + TILE_SIZE // 2)
-        pygame.draw.circle(screen, SURVIVOR_COLOR, center, TILE_SIZE // 4)
-
-    ax, ay = env.agent_pos
-    center = (ax * TILE_SIZE + TILE_SIZE // 2, ay * TILE_SIZE + TILE_SIZE // 2)
-    pygame.draw.circle(screen, AGENT_COLOR, center, TILE_SIZE // 3)
+Q_TABLE_PATH = "models/q_table.pkl"
+SEED = 42
 
 
 def main():
@@ -64,41 +16,53 @@ def main():
 
     agent = QLearningAgent()
     agent.load(Q_TABLE_PATH)
-    agent.epsilon = 0.0  # force pure greedy, no random exploration
+    agent.epsilon = 0.0
 
     pygame.init()
-    width = env.terrain.shape[1] * TILE_SIZE
-    height = env.terrain.shape[0] * TILE_SIZE
-    screen = pygame.display.set_mode((width, height))
+    grid_w = env.terrain.shape[1] * TILE_SIZE
+    grid_h = env.terrain.shape[0] * TILE_SIZE
+    screen = pygame.display.set_mode((grid_w, grid_h + HUD_HEIGHT))
     pygame.display.set_caption("EmberPath - trained Q-learning agent")
     clock = pygame.time.Clock()
 
+    assets = AssetManager()
+    assets.load_all()
+    renderer = Renderer(assets)
+    hud = HUD(assets)
+
     running = True
-    step_delay = 0
+    step_delay = 0.0
+    last_reward = 0.0
+    last_info = env._get_info()
+
     while running:
+        dt = clock.tick(60) / 1000.0  # seconds since last frame
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-        step_delay += 1
-        if step_delay >= 15:  # a bit faster than the random-action test: 0.5s per step at 30fps
-            step_delay = 0
+        step_delay += dt
+        if step_delay >= 0.5:  # one env step every 0.5s
+            step_delay = 0.0
             state = discretize_state(env)
             action = agent.select_action(state, greedy=True)
             _, reward, terminated, truncated, info = env.step(action)
+            last_reward, last_info = reward, info
             print(f"step={info['step_count']} reward={reward:.2f} "
                   f"rescued={info['rescued']} burned={info['burned']}")
             if terminated or truncated:
                 print(f"Episode ended. Final: rescued={info['rescued']}, burned={info['burned']}")
-                running = False  # stop after one episode to read the result
+                running = False
 
-        draw_grid(screen, env)
+        renderer.draw(screen.subsurface((0, HUD_HEIGHT, grid_w, grid_h)), env, dt)
+        hud.draw(screen, last_info, last_reward, grid_w)
         pygame.display.flip()
-        clock.tick(30)
 
-    pygame.time.wait(2000)  # hold the final frame for 2 seconds before closing
+    pygame.time.wait(2000)
     pygame.quit()
     sys.exit()
+
 
 if __name__ == "__main__":
     main()
