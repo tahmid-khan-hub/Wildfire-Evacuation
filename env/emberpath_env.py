@@ -122,20 +122,39 @@ class EmberPathEnv(gym.Env):
         return count
 
     def _nearest_unresolved_distance(self):
+        # distance-shaping should reward progress toward whichever survivor is most fire-threatened 
+        # happens to be physically closest — otherwise the shaping reward fights against the correct rescue order.
         agent_x, agent_y = self.agent_pos
-        distances = []
-        for i in range (len(self.survivor_positions)):
-            sx, sy = self.survivor_positions[i]
 
+        priority_fire_dist = None
+        priority_agent_dist = None
+
+        for i in range(len(self.survivor_positions)):
+            sx, sy = self.survivor_positions[i]
             if self.survivor_rescued[i] or self.survivor_burned[i]:
                 continue
 
-            distances.append(abs(sx - agent_x) + abs(sy - agent_y)) # calculate manhattan distance as it is suitable because our agent can not move diagonally
+            fire_dist = self._nearest_fire_distance_to(sx, sy)
+            fire_dist = fire_dist if fire_dist is not None else 10_000
+            agent_dist = abs(sx - agent_x) + abs(sy - agent_y)
 
-        if distances:
-            return min(distances)
-        else:
+            is_better = (
+                priority_fire_dist is None
+                or fire_dist < priority_fire_dist
+                or (fire_dist == priority_fire_dist and agent_dist < priority_agent_dist)
+            )
+            if is_better:
+                priority_fire_dist = fire_dist
+                priority_agent_dist = agent_dist
+
+        return priority_agent_dist
+    
+    def _nearest_fire_distance_to(self, sx, sy):
+        burning = np.argwhere(np.isin(self.fire_state, list(DANGEROUS_FIRE_STATES)))
+        if len(burning) == 0:
             return None
+        dists = np.abs(burning[:, 1] - sx) + np.abs(burning[:, 0] - sy)
+        return int(dists.min())
 
     def _get_obs(self):
         # neural networks don't naturally work with multiple separate variables, it expect a fixed-size numerical input. Here, we transforms the environment's internal state into a single vector
