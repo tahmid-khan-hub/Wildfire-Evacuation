@@ -84,6 +84,8 @@ REWARD_AGENT_BURNED = -100.0 # agent enters a burning cell -> episode ends
 REWARD_DISTANCE_SHAPING = 0.5 # scaled by reduction in distance to nearest survivor
 REWARD_TIMEOUT = -10.0 # episode hits max steps without full rescue
 
+REWARD_FULL_CLEAR_BONUS = 75.0 # one-time bonus for rescuing all survivors with zero burned
+
 # Survivor config
 NUM_SURVIVORS = 3
 

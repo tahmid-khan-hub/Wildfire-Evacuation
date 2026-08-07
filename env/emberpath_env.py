@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSBLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS, REWARD_STEP_PENALTY, REWARD_AGENT_BURNED, REWARD_RESCUE, REWARD_SURVIVOR_BURNED, REWARD_DISTANCE_SHAPING, MAX_EPISODE_STEPS, REWARD_TIMEOUT)
+from env.constants import ( GRID_WIDTH, GRID_HEIGHT, ACTION_DELTAS, IMPASSBLE_TERRAIN, DANGEROUS_FIRE_STATES, NUM_SURVIVORS, REWARD_STEP_PENALTY, REWARD_AGENT_BURNED, REWARD_RESCUE, REWARD_SURVIVOR_BURNED, REWARD_DISTANCE_SHAPING, MAX_EPISODE_STEPS, REWARD_TIMEOUT, REWARD_FULL_CLEAR_BONUS)
 from env.grid_generator import generate_grid
 from env.fire_spread import spread_fire, init_burn_timer
 
@@ -78,6 +78,8 @@ class EmberPathEnv(gym.Env):
         resolved_count = sum(self.survivor_burned) + sum(self.survivor_rescued)
         if resolved_count == NUM_SURVIVORS:
             terminated = True
+            if sum(self.survivor_burned) == 0:
+                reward += REWARD_FULL_CLEAR_BONUS
     
         # still survivors left but curr step is greater than max step so ended the episode of external limit
         truncated = False
