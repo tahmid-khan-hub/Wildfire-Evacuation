@@ -8,9 +8,9 @@ from render.asset_manager import AssetManager, TILE_SIZE
 from render.renderer import Renderer
 from render.hud import HUD, HUD_HEIGHT
 
-MODEL_PATH = "models/dqn_emberpath.zip"  # swap to models/ppo_emberpath.zip or Q-table for other demos
-SEED = 42
-OUTPUT_PATH = "demo/output/dqn_episode.gif"
+MODEL_PATH = "models/dqn_emberpath2.zip"  # swap to models/ppo_emberpath.zip or Q-table for other demos
+SEED = 45
+OUTPUT_PATH = "demo/output/dqn_episode2.gif"
 FRAME_DURATION = 900 # seconds each frame displays in the gif
 FINAL_FRAME_HOLD = 2500
 
