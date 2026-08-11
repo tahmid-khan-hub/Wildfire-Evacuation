@@ -11,8 +11,8 @@ from render.hud import HUD, HUD_HEIGHT
 MODEL_PATH = "models/dqn_emberpath.zip"  # swap to models/ppo_emberpath.zip or Q-table for other demos
 SEED = 42
 OUTPUT_PATH = "demo/output/dqn_episode.gif"
-FRAME_DURATION = 0.9  # seconds each frame displays in the gif
-FINAL_FRAME_HOLD = 2.5
+FRAME_DURATION = 900 # seconds each frame displays in the gif
+FINAL_FRAME_HOLD = 2500
 
 def surface_to_array(surface):
     arr = pygame.surfarray.array3d(surface)
